@@ -463,11 +463,11 @@ def _sample_max_value_Thompson(
     weight = 1.0 if maximize else -1.0
     samples = weight * posterior.rsample(torch.Size([num_samples])).squeeze(-1)
     # samples is num_samples x (num_fantasies) x n
-    max_values, tst = samples.max(dim=-1)
+    max_values, idx = samples.max(dim=-1)
     if len(samples.shape) == 2:
         max_values = max_values.unsqueeze(-1)  # num_samples x num_fantasies
 
-    return max_values, tst
+    return max_values, idx
 
 
 def _sample_max_value_Gumbel(
