@@ -21,22 +21,21 @@ References
     arXiv:1901.08275v1, 2019
 """
 
-from __future__ import annotations
-
 from copy import deepcopy
 from math import log
 from typing import Callable, Optional
 
 import torch
-from botorch.acquisition.cost_aware import CostAwareUtility, InverseCostWeightedUtility
-from botorch.acquisition.monte_carlo import MCAcquisitionFunction
-from botorch.models.cost import AffineFidelityCostModel
-from botorch.models.model import Model
-from botorch.models.utils import check_no_nans
-from botorch.sampling.samplers import SobolQMCNormalSampler
-from botorch.utils.transforms import match_batch_shape, t_batch_mode_transform
 from scipy.optimize import brentq
 from torch import Tensor
+
+from ..models.cost import AffineFidelityCostModel
+from ..models.model import Model
+from ..models.utils import check_no_nans
+from ..sampling.samplers import SobolQMCNormalSampler
+from ..utils.transforms import match_batch_shape, t_batch_mode_transform
+from .cost_aware import CostAwareUtility, InverseCostWeightedUtility
+from .monte_carlo import MCAcquisitionFunction
 
 
 CLAMP_LB = 1.0e-8
@@ -149,9 +148,7 @@ class qMaxValueEntropy(MCAcquisitionFunction):
         with torch.no_grad():
             # Append X_pending to candidate set
             if self.X_pending is None:
-                X_pending = torch.tensor(
-                    [], dtype=self.candidate_set.dtype, device=self.candidate_set.device
-                )
+                X_pending = torch.tensor([], dtype=self.candidate_set.dtype)
             else:
                 X_pending = self.X_pending
             X_pending = match_batch_shape(X_pending, self.candidate_set)
@@ -170,7 +167,7 @@ class qMaxValueEntropy(MCAcquisitionFunction):
                     self.model, candidate_set, self.num_mv_samples, self.maximize
                 )
             else:
-                self.posterior_max_values = _sample_max_value_Thompson(
+                self.posterior_max_values, self.posterior_max_idx  = _sample_max_value_Thompson(
                     self.model, candidate_set, self.num_mv_samples, self.maximize
                 )
 
@@ -466,11 +463,11 @@ def _sample_max_value_Thompson(
     weight = 1.0 if maximize else -1.0
     samples = weight * posterior.rsample(torch.Size([num_samples])).squeeze(-1)
     # samples is num_samples x (num_fantasies) x n
-    max_values, _ = samples.max(dim=-1)
+    max_values, tst = samples.max(dim=-1)
     if len(samples.shape) == 2:
         max_values = max_values.unsqueeze(-1)  # num_samples x num_fantasies
 
-    return max_values
+    return max_values, tst
 
 
 def _sample_max_value_Gumbel(
